@@ -1,0 +1,83 @@
+# fnp-template full stack — PostgreSQL, FastAPI backend, Next.js frontend
+#
+# Usage:
+#   cp backend/.env.example backend/.env
+#   docker compose -f docker/docker-compose.yml up --build
+#
+# Services:
+#   frontend -> http://localhost:3000
+#   api      -> http://localhost:8000/docs
+#   db       -> internal only (no host port; avoids conflict with `make db-start` on :5432)
+#   psql     -> docker compose exec db psql -U postgres -d app_db
+
+services:
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-app_db}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-app_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
+
+  api:
+    build:
+      context: ../backend
+      dockerfile: ../docker/backend.Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ../backend/.env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-app_db}
+      BACKEND_CORS_ORIGINS: '["http://localhost:${FRONTEND_HOST_PORT:-3000}"]'
+    ports:
+      - "${API_HOST_PORT:-8000}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - app-network
+
+  frontend:
+    image: node:22-alpine
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - ../frontend:/app
+      - frontend_node_modules:/app/node_modules
+    command: sh -c "npm install && npm run dev -- --hostname 0.0.0.0"
+    ports:
+      - "${FRONTEND_HOST_PORT:-3000}:3000"
+    environment:
+      # Mock UI data until care-domain API endpoints exist (auth/users API still runs)
+      NEXT_PUBLIC_USE_MOCK: "true"
+      # Browser → host-mapped API port; server actions → Docker network service name
+      NEXT_PUBLIC_API_BASE_URL: "http://localhost:${API_HOST_PORT:-8000}/api/v1"
+      API_BASE_URL: "http://api:8000/api/v1"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - app-network
+
+volumes:
+  postgres_data:
+  frontend_node_modules:
+
+networks:
+  app-network:
+    driver: bridge

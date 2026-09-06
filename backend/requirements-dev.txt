@@ -1,0 +1,6 @@
+# Testing
+pytest>=8.0.0
+
+# Linting and formatting
+ruff>=0.14.0
+ty>=0.0.1

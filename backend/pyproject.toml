@@ -1,0 +1,54 @@
+[project]
+name = "fnp-template-backend"
+version = "0.1.0"
+requires-python = ">=3.11,<3.14"
+dynamic = ["dependencies", "optional-dependencies"]
+
+[tool.fastapi]
+entrypoint = "app.main:app"
+
+[tool.setuptools]
+packages = []
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+
+[tool.setuptools.dynamic.optional-dependencies]
+dev = {file = ["requirements-dev.txt"]}
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::jwt.InsecureKeyLengthWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 88
+exclude = [".venv", "alembic/versions"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "SIM", # flake8-simplify
+    "C4",  # flake8-comprehensions
+    "RET", # flake8-return
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+    "B008",  # Depends() in function defaults (standard FastAPI pattern)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+"alembic/versions/*" = ["E501", "F401"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
